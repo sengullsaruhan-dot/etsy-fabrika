@@ -22,63 +22,61 @@ sirket_hafizasi = {
     "bekleyen_gorsel": None
 }
 
-# ----------------- DEPARTMAN 1: CEO & ARAŞTIRMACI -----------------
+# ----------------- DEPARTMAN 1: STRATEJİ VE ARAŞTIRMA -----------------
 def departman_arastirma():
     notlar = " ".join(sirket_hafizasi["patron_notlari"])
-    sistem_mesaji = """Sen üst düzey bir Etsy ürün stratejistisin.
+    sistem_mesaji = """Sen profesyonel bir Etsy ürün stratejistisin.
     
-    KESİN KURALLARIN:
-    1. ASLA tipografi, yazı, kelime, harf veya alıntı (quote) içeren ürünler önerme. Yapay zeka yazıları bozar.
-    2. Tasarımlar karmaşık bir "çorba" olmamalı. Tek bir net odak noktası (ana obje/karakter) olmalı.
-    3. Konseptlerin her zaman 'Western Retro', 'Streetwear (Sokak Stili)', veya keskin hatlı ikonik tasarımlar üzerine olmalı.
+    MAĞAZA KONSEPTİ VE KESİN KURALLAR:
+    1. Mağazamız sadece şu ürünleri satar: Sokak giyimi (streetwear) için vektörel grafikler ve Western retro tarzı poster tasarımları. Telefon kılıfı, kupa veya rastgele eşyalar önerme.
+    2. Tasarımlar maskülen, keskin hatlı, net çizgili ve 'Eşref Tek' estetiği denilen sert ve duru bir yapıda olmalıdır. Karmaşık ve çorba gibi görüntülerden kaçın.
+    3. ASLA tipografi, yazı, kelime, harf veya alıntı içeren ürünler önerme. Sadece görsel illüstrasyon.
     
     Bana SADECE şu formatta yanıt ver:
     [Ürün Tipi] - [Detaylı Konsept ve Hedef Kitle]"""
     
     if notlar:
-        sistem_mesaji += f"\nPATRONUN KESİN EMRİ: {notlar}"
+        sistem_mesaji += f"\nALINAN GERİ BİLDİRİMLER: {notlar}"
         
     try:
         cevap = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": sistem_mesaji},
-                {"role": "user", "content": "Bana yazısız, keskin hatlı, çok satacak bir dijital ürün konsepti ver."}
+                {"role": "user", "content": "Belirlenen mağaza konseptine uygun, yüksek satış potansiyelli ve yazısız bir dijital ürün stratejisi belirle."}
             ]
         )
         return cevap.choices[0].message.content
     except Exception as e:
-        logging.error(f"Araştırma Çöktü: {e}")
-        return "Streetwear T-Shirt Graphic - A lone cowboy silhouette standing in a vast desert, sharp vector style, no text."
+        logging.error(f"Araştırma hatası: {e}")
+        return "Streetwear Graphic - A lone cowboy silhouette standing in a vast desert, sharp vector style, highly defined edges."
 
 # ----------------- DEPARTMAN 2: SANAT YÖNETMENİ -----------------
 def departman_sanat_yonetmeni(arastirma_sonucu):
-    sistem_mesaji = """Sen dünyanın en iyi görsel Prompt mühendisisin.
-    Gelen konsepti alıp İngilizce, virgüllerle ayrılmış kusursuz bir prompta çevir.
+    sistem_mesaji = """Sen uzman bir görsel prompt mühendisisin.
+    Gelen konsepti alıp İngilizce, virgüllerle ayrılmış net bir prompta çevir.
     
-    HAYATİ KURALLAR (Bunları prompta mutlaka dahil et):
-    1. Mutlaka şunu ekle: "textless, strictly NO text, NO words, NO letters, NO watermarks, NO signatures, clean background".
-    2. Tasarımın çamur gibi olmaması için şu terimleri kullan: "sharp focus, clean lines, high contrast, masterpiece, 8k resolution, vector illustration style".
-    3. Konuya göre "Western retro aesthetic" veya "streetwear graphic design" terimlerini ekle.
+    ZORUNLU PARAMETRELER:
+    1. Promptun sonuna kesinlikle ekle: "textless, strictly NO text, NO words, NO letters, NO watermarks, NO signatures, clean solid background".
+    2. Çizim kalitesi için ekle: "sharp focus, clean masculine lines, high contrast, minimalist but detailed, vector illustration style, 8k resolution".
     
-    Sadece prompt metnini ver, başka hiçbir şey yazma."""
+    Sadece prompt metnini ver."""
     
     try:
         cevap = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": sistem_mesaji},
-                {"role": "user", "content": f"Şu konsepti kusursuz bir görsel promptuna çevir:\n{arastirma_sonucu}"}
+                {"role": "user", "content": f"Şu konsepti kurallara uygun bir görsel promptuna çevir:\n{arastirma_sonucu}"}
             ]
         )
         return cevap.choices[0].message.content
     except Exception as e:
-        return f"{arastirma_sonucu}, masterpiece, sharp focus, vector style, textless, strictly no text, no words, no watermarks, clean background, 8k resolution"
+        return f"{arastirma_sonucu}, sharp focus, clean masculine lines, vector style, textless, strictly no text, no words, no watermarks, solid background, 8k resolution"
 
-# ----------------- DEPARTMAN 3: ÜRETİM (FLUX MOTORU) -----------------
+# ----------------- DEPARTMAN 3: ÜRETİM -----------------
 def departman_uretim(prompt):
     try:
-        # Prompt'u URL için güvenli hale getiriyoruz
         encoded_prompt = urllib.parse.quote(prompt)
         url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&model=flux&nologo=true"
         
@@ -87,10 +85,10 @@ def departman_uretim(prompt):
             return response.content
         return None
     except Exception as e:
-        logging.error(f"Üretim Hatası: {e}")
+        logging.error(f"Üretim hatası: {e}")
         return None
 
-# ----------------- DEPARTMAN 4: PAKETLEME VE LOJİSTİK -----------------
+# ----------------- DEPARTMAN 4: PAKETLEME -----------------
 def paketle_pdf(img_bytes):
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=(595, 842))
@@ -100,17 +98,17 @@ def paketle_pdf(img_bytes):
     buf.seek(0)
     return buf
 
-# ----------------- TELEGRAM PANELİ -----------------
+# ----------------- KULLANICI ARAYÜZÜ -----------------
 async def uretim_baslat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    durum_mesaji = await update.message.reply_text("Strateji belirleniyor...")
+    durum_mesaji = await update.message.reply_text("Strateji ve pazar analizi başlatıldı.")
     
     arastirma = departman_arastirma()
     sirket_hafizasi["urun_tipi"] = arastirma
-    await durum_mesaji.edit_text(f"Karar Verildi:\n{arastirma}\n\nPrompt yazılıyor...")
+    await durum_mesaji.edit_text(f"Strateji Belirlendi:\n{arastirma}\n\nTeknik parametreler hazırlanıyor.")
     
     kusursuz_prompt = departman_sanat_yonetmeni(arastirma)
     sirket_hafizasi["son_prompt"] = kusursuz_prompt
-    await durum_mesaji.edit_text("Görsel motoru çalışıyor, detaylar işleniyor...")
+    await durum_mesaji.edit_text("Görsel motoru üretimi gerçekleştiriyor. Lütfen bekleyin.")
     
     img_data = departman_uretim(kusursuz_prompt)
     
@@ -118,52 +116,52 @@ async def uretim_baslat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sirket_hafizasi["bekleyen_gorsel"] = img_data
         
         keyboard = [
-            [InlineKeyboardButton("Onayla ve PDF Yap", callback_data="onay_ver")],
-            [InlineKeyboardButton("Reddet (Hatalı/Kalitesiz)", callback_data="reddet")]
+            [InlineKeyboardButton("Onayla ve İndir", callback_data="onay_ver")],
+            [InlineKeyboardButton("Reddet ve Geri Bildirim Ver", callback_data="reddet")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await context.bot.send_photo(
             chat_id=update.message.chat_id,
             photo=img_data,
-            caption=f"Yeni Ürün Prototiplendi.\n\nStrateji: {arastirma}\n\nİşlem seçiniz:",
+            caption=f"Yeni Ürün Prototiplendi.\n\nStrateji: {arastirma}",
             reply_markup=reply_markup
         )
         await durum_mesaji.delete()
     else:
-        await durum_mesaji.edit_text("Bağlantı hatası, lütfen tekrar deneyin.")
+        await durum_mesaji.edit_text("Bağlantı hatası oluştu, lütfen işlemi tekrarlayın.")
 
 async def buton_yonetimi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
     if query.data == "onay_ver":
-        await query.edit_message_caption(caption="Onaylandı. PDF hazırlanıyor...")
+        await query.edit_message_caption(caption="Onaylandı. Dosya hazırlanıyor.")
         img_data = sirket_hafizasi["bekleyen_gorsel"]
         pdf_dosya = paketle_pdf(img_data)
         await context.bot.send_document(
             chat_id=query.message.chat_id,
             document=pdf_dosya,
-            filename=f"Premium_Design.pdf",
-            caption="Satışa hazır PDF dosyası."
+            filename="Tasari_Export.pdf",
+            caption="Baskıya ve satışa hazır dosya."
         )
         
     elif query.data == "reddet":
-        await query.edit_message_caption(caption="Reddedildi. Sebep bekleniyor.")
+        await query.edit_message_caption(caption="Reddedildi.")
         await context.bot.send_message(
             chat_id=query.message.chat_id,
-            text="Tasarımda ne eksikti? Lütfen '/duzelt [sebebiniz]' formatında geri bildirim yazın."
+            text="Tasarımda revize edilmesi gereken kısımları '/duzelt [notunuz]' formatında iletin."
         )
 
 async def duzelt_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Lütfen eleştirinizi ekleyin. Örnek: /duzelt Ana obje çok küçüktü.")
+        await update.message.reply_text("Geri bildirim metni bulunamadı. Örnek kullanım: /duzelt Çizgiler daha kalın olmalı.")
         return
     
     elestiri = " ".join(context.args)
     sirket_hafizasi["patron_notlari"].append(elestiri)
     
-    await update.message.reply_text(f"Geri bildirim sisteme eklendi: '{elestiri}'.\nYeni üretim için /uretim_baslat komutunu kullanabilirsiniz.")
+    await update.message.reply_text(f"Geri bildirim sisteme kaydedildi: '{elestiri}'.\nYeni iterasyon için /uretim_baslat komutunu çalıştırabilirsiniz.")
 
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -173,7 +171,7 @@ async def main():
     app.add_handler(CommandHandler("duzelt", duzelt_komutu))
     app.add_handler(CallbackQueryHandler(buton_yonetimi))
     
-    print("Sistem Aktif!")
+    print("Sistem Aktif.")
     
     await app.initialize()
     await app.start()
