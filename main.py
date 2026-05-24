@@ -3,113 +3,97 @@ import requests
 import openai
 import os
 import asyncio
+import sqlite3
 from io import BytesIO
 from PIL import Image
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
-# Railway üzerinden gelen anahtar artık aktif
+# Yapılandırma ve Veritabanı (Kayıt sistemi için)
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-
 logging.basicConfig(level=logging.INFO)
 
-sirket_hafizasi = {
-    "urun_tipi": "",
-    "son_prompt": "",
-    "patron_notlari": [], 
-    "bekleyen_gorsel": None
-}
+# Veritabanı Kurulumu (Hafıza için)
+conn = sqlite3.connect('fabrika_arsiv.db', check_same_thread=False)
+c = conn.cursor()
+c.execute('''CREATE TABLE IF NOT EXISTS arsiv (id INTEGER PRIMARY KEY, konsept TEXT, prompt TEXT, basari_durumu TEXT)''')
+conn.commit()
 
-# ----------------- DEPARTMAN 1: STRATEJİ -----------------
-def departman_arastirma():
-    notlar = " ".join(sirket_hafizasi["patron_notlari"])
-    sistem_mesaji = """Sen profesyonel bir Etsy grafik stratejistisin.
-    Üreteceğin tasarımlar: Maskülen, keskin hatlı, 'Eşref Tek' tarzı sert Western/Streetwear.
-    YASAKLAR: Yazı, harf, logo, çerçeve, bulanıklık ASLA olmayacak.
-    SADECE yüksek kontrastlı, beyaz arka planlı, vektör sanat eseri üret."""
-    
-    if notlar:
-        sistem_mesaji += f"\nPATRONUN SON TALİMATLARI: {notlar}"
-        
-    try:
-        cevap = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": sistem_mesaji},
-                {"role": "user", "content": "Etsy'de satacak, maskülen, sert hatlı, yazısız bir görsel konsepti yaz."}
-            ]
-        )
-        return cevap.choices[0].message.content
-    except Exception as e:
-        return "Streetwear Graphic - A high-contrast, sharp-edged cowboy skull, vintage western aesthetic."
+# Şirket Hafızası
+sirket_hafizasi = {"secilen_nis": "", "patron_notlari": [], "bekleyen_gorsel": None}
 
-# ----------------- DEPARTMAN 2: SANAT (DALL-E 3 PROMPT MÜHENDİSLİĞİ) -----------------
-def departman_sanat_yonetmeni(arastirma_sonucu):
-    sistem_mesaji = """Sen bir görsel sanat direktörüsün.
-    Şu konsepti, DALL-E 3 için İngilizce prompta çevir.
+# --- 1. STRATEJİ & PAZAR ANALİZİ ---
+async def fikirver(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mesaj = await update.message.reply_text("🔍 Pazar verileri analiz ediliyor...")
+    sistem = """Sen kıdemli bir Etsy Veri Analistisin. Şu an dünyada en çok satan, 
+    yazısız, yüksek kontrastlı, maskülen/streetwear tarzı 3 nişi (Streetwear, Western, Dark Geometry) analiz et. 
+    Hangisi en çok kâr bırakır? Neden? 3 öneri sun."""
     
-    KURAL: 
-    - Mutlaka ekle: "textless, strictly NO text, NO words, NO letters, isolated on solid white background".
-    - Stil: "masterpiece, sharp focus, clean crisp vector lines, high contrast, bold aesthetic, perfectly centered".
-    - ASLA yazı ekleme. Sadece görsel tasvirini ver."""
-    
-    cevap = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": sistem_mesaji},
-            {"role": "user", "content": f"Şu konsepti kusursuz bir DALL-E 3 promptuna çevir:\n{arastirma_sonucu}"}
-        ]
-    )
+    cevap = client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "system", "content": sistem}, {"role": "user", "content": "3 karlı niş öner."}])
+    await mesaj.edit_text(f"📈 **Strateji Raporu:**\n{cevap.choices[0].message.content}\n\nSeçmek için: /sec [Niş Adı]")
+
+# --- 2. SANAT YÖNETİMİ (KUSURSUZ PROMPT KORUMASI) ---
+def departman_sanat_yonetmeni(konsept, notlar):
+    sistem = """Sen bir Sanat Direktörüsün. Gelen konsepti DALL-E 3 promptuna çevir. 
+    KATİ KURAL: "textless, strictly NO text, NO words, NO letters, isolated on solid white background".
+    Kalite parametreleri: "masterpiece, sharp focus, vector art, high contrast, bold lines, 8k". 
+    ASLA yazı yazma. Yazı çıkarsa sistem çöker, patron kızar."""
+    cevap = client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "system", "content": sistem}, {"role": "user", "content": f"Konsept: {konsept}, Ek Notlar: {notlar}"}])
     return cevap.choices[0].message.content
 
-# ----------------- DEPARTMAN 3: DALL-E 3 ÜRETİM -----------------
-def departman_uretim(prompt):
-    try:
-        response = client.images.generate(
-            model="dall-e-3",
-            prompt=prompt,
-            size="1024x1024",
-            quality="hd", # En üst kalite
-            n=1,
-        )
-        img_response = requests.get(response.data[0].url)
-        return img_response.content
-    except Exception as e:
-        return None
-
-# ----------------- DEPARTMAN 4: MATBAA (300 DPI) -----------------
-def baski_kalitesine_yukselt(img_bytes):
-    img = Image.open(BytesIO(img_bytes))
-    # 4000x4000 piksel @ 300 DPI (Baskı Standardı)
-    img_yuksek = img.resize((4000, 4000), Image.Resampling.LANCZOS)
-    baski_dosyasi = BytesIO()
-    img_yuksek.save(baski_dosyasi, format="PNG", dpi=(300, 300))
-    baski_dosyasi.seek(0)
-    return baski_dosyasi
-
-# ----------------- ARAYÜZ (BOT) -----------------
+# --- 3. ÜRETİM VE HATA YÖNETİMİ ---
 async def uretim_baslat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    mesaj = await update.message.reply_text("Strateji ve OpenAI DALL-E 3 bağlantısı kuruluyor...")
+    if not sirket_hafizasi["secilen_nis"]:
+        await update.message.reply_text("🚨 Önce /fikirver ve /sec yapmalısın.")
+        return
     
-    konsept = departman_arastirma()
-    prompt = departman_sanat_yonetmeni(konsept)
-    img_bytes = departman_uretim(prompt)
-    
-    if img_bytes:
-        sirket_hafizasi["bekleyen_gorsel"] = img_bytes
-        await context.bot.send_photo(update.message.chat_id, photo=img_bytes, 
-                                     caption=f"Prototip: {konsept}\n\nOnaylıyorsan 300 DPI dosya alabilirsin.")
+    try:
+        mesaj = await update.message.reply_text("🎨 Üretim bandı çalışıyor...")
+        prompt = departman_sanat_yonetmeni(sirket_hafizasi["secilen_nis"], sirket_hafizasi["patron_notlari"])
+        
+        # DALL-E 3 Üretim (Hata Yönetimi ile)
+        response = client.images.generate(model="dall-e-3", prompt=prompt, size="1024x1024", quality="hd", n=1)
+        img_data = requests.get(response.data[0].url).content
+        
+        sirket_hafizasi["bekleyen_gorsel"] = img_data
+        
+        # Veritabanına Kayıt
+        c.execute("INSERT INTO arsiv (konsept, prompt, basari_durumu) VALUES (?, ?, ?)", (sirket_hafizasi['secilen_nis'], prompt, "Beklemede"))
+        conn.commit()
+        
+        keyboard = [[InlineKeyboardButton("✅ 300 DPI İndir", callback_data="onay_ver")], [InlineKeyboardButton("❌ Revize Et", callback_data="reddet")]]
+        await context.bot.send_photo(chat_id=update.message.chat_id, photo=img_data, caption="Prototip Hazır.", reply_markup=InlineKeyboardMarkup(keyboard))
         await mesaj.delete()
-    else:
-        await mesaj.edit_text("Hata: OpenAI API anahtarını veya bakiyeni kontrol et.")
+        
+    except Exception as e:
+        await update.message.reply_text(f"🚨 Fabrika arızalandı: {str(e)}\n\nLütfen OpenAI bakiyesini kontrol et.")
+
+# --- 4. MATBAA MODÜLÜ ---
+def baski_kalitesine_yukselt(img_bytes):
+    img = Image.open(BytesIO(img_bytes)).resize((4000, 4000), Image.Resampling.LANCZOS)
+    buf = BytesIO()
+    img.save(buf, format="PNG", dpi=(300, 300))
+    buf.seek(0)
+    return buf
 
 async def buton_yonetimi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     if query.data == "onay_ver":
-        baski_dosyasi = baski_kalitesine_yukselt(sirket_hafizasi["bekleyen_gorsel"])
-        await context.bot.send_document(query.message.chat_id, document=baski_dosyasi, 
-                                        filename="Etsy_PrintReady_300DPI.png")
+        await context.bot.send_document(query.message.chat_id, document=baski_kalitesine_yukselt(sirket_hafizasi["bekleyen_gorsel"]), filename="PrintReady_300DPI.png")
+    elif query.data == "reddet":
+        await query.edit_message_caption(caption="❌ Reddedildi. Notlarını /duzelt [notun] ile gönder.")
 
-#
+async def main():
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("fikirver", fikirver))
+    app.add_handler(CommandHandler("sec", sec))
+    app.add_handler(CommandHandler("uretim_baslat", uretim_baslat))
+    app.add_handler(CommandHandler("duzelt", lambda u, c: asyncio.create_task(u.message.reply_text("📝 Not alındı."))))
+    app.add_handler(CallbackQueryHandler(buton_yonetimi))
+    await app.updater.start_polling()
+    await asyncio.Event().wait()
+
+if __name__ == "__main__":
+    asyncio.run(main())
