@@ -3,7 +3,6 @@ import requests
 import openai
 import os
 import asyncio
-import random
 import urllib.parse
 from io import BytesIO
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -11,13 +10,11 @@ from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandle
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 
-# Railway Ortam Değişkenleri
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 logging.basicConfig(level=logging.INFO)
 
-# Şirket Hafızası (Öğrenen Algoritma)
 sirket_hafizasi = {
     "urun_tipi": "",
     "son_prompt": "",
@@ -28,50 +25,62 @@ sirket_hafizasi = {
 # ----------------- DEPARTMAN 1: CEO & ARAŞTIRMACI -----------------
 def departman_arastirma():
     notlar = " ".join(sirket_hafizasi["patron_notlari"])
-    sistem_mesaji = """Sen milyoner bir Etsy stratejistisin. Görevin, bugün Etsy'de en çok satacak, rekabetin düşük olduğu dijital ürünü belirlemek.
-    Ürün tipleri şunlar olabilir: Western retro posterler, streetwear tişört grafikleri, minimalist duvar sanatı, vintage tipografi tasarımları veya kupa baskıları.
+    sistem_mesaji = """Sen üst düzey bir Etsy ürün stratejistisin.
+    
+    KESİN KURALLARIN:
+    1. ASLA tipografi, yazı, kelime, harf veya alıntı (quote) içeren ürünler önerme. Yapay zeka yazıları bozar.
+    2. Tasarımlar karmaşık bir "çorba" olmamalı. Tek bir net odak noktası (ana obje/karakter) olmalı.
+    3. Konseptlerin her zaman 'Western Retro', 'Streetwear (Sokak Stili)', veya keskin hatlı ikonik tasarımlar üzerine olmalı.
+    
     Bana SADECE şu formatta yanıt ver:
     [Ürün Tipi] - [Detaylı Konsept ve Hedef Kitle]"""
     
     if notlar:
-        sistem_mesaji += f"\nPATRONUN KESİN EMRİ (Bunlara dikkat et): {notlar}"
+        sistem_mesaji += f"\nPATRONUN KESİN EMRİ: {notlar}"
         
     try:
         cevap = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": sistem_mesaji},
-                {"role": "user", "content": "Bugün Etsy'de ne satıyoruz? En karlı dijital ürün konseptini ver."}
+                {"role": "user", "content": "Bana yazısız, keskin hatlı, çok satacak bir dijital ürün konsepti ver."}
             ]
         )
         return cevap.choices[0].message.content
     except Exception as e:
-        logging.error(f"Araştırma Departmanı Çöktü: {e}")
-        return "Western Retro Wall Art - A vintage cowboy riding a mechanical horse in a neon desert, target audience: streetwear enthusiasts and retro decor lovers."
+        logging.error(f"Araştırma Çöktü: {e}")
+        return "Streetwear T-Shirt Graphic - A lone cowboy silhouette standing in a vast desert, sharp vector style, no text."
 
-# ----------------- DEPARTMAN 2: SANAT YÖNETMENİ (Kusursuz Prompt) -----------------
+# ----------------- DEPARTMAN 2: SANAT YÖNETMENİ -----------------
 def departman_sanat_yonetmeni(arastirma_sonucu):
-    sistem_mesaji = """Sen dünyanın en iyi AI Prompt Mühendisisin. Gelen Etsy konseptini alıp, FLUX AI motorunun anlayacağı 'Kusursuz, ultra-gerçekçi, 8k çözünürlüklü, ödüllü' bir İngilizce prompta çevireceksin. 
-    Promptun içinde ışıklandırma (cinematic lighting), stil (vector, retro, photorealistic vb.), kalite (masterpiece, highly detailed) ve negatif promptları hissettiren kesin komutlar olmalı. Sadece prompt metnini yaz."""
+    sistem_mesaji = """Sen dünyanın en iyi görsel Prompt mühendisisin.
+    Gelen konsepti alıp İngilizce, virgüllerle ayrılmış kusursuz bir prompta çevir.
+    
+    HAYATİ KURALLAR (Bunları prompta mutlaka dahil et):
+    1. Mutlaka şunu ekle: "textless, strictly NO text, NO words, NO letters, NO watermarks, NO signatures, clean background".
+    2. Tasarımın çamur gibi olmaması için şu terimleri kullan: "sharp focus, clean lines, high contrast, masterpiece, 8k resolution, vector illustration style".
+    3. Konuya göre "Western retro aesthetic" veya "streetwear graphic design" terimlerini ekle.
+    
+    Sadece prompt metnini ver, başka hiçbir şey yazma."""
     
     try:
         cevap = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": sistem_mesaji},
-                {"role": "user", "content": f"Şu konsept için muazzam bir görsel promptu yaz:\n{arastirma_sonucu}"}
+                {"role": "user", "content": f"Şu konsepti kusursuz bir görsel promptuna çevir:\n{arastirma_sonucu}"}
             ]
         )
         return cevap.choices[0].message.content
     except Exception as e:
-        return f"masterpiece, best quality, ultra-detailed, {arastirma_sonucu}, cinematic lighting, vibrant colors, 8k resolution, award-winning digital art"
+        return f"{arastirma_sonucu}, masterpiece, sharp focus, vector style, textless, strictly no text, no words, no watermarks, clean background, 8k resolution"
 
 # ----------------- DEPARTMAN 3: ÜRETİM (FLUX MOTORU) -----------------
 def departman_uretim(prompt):
     try:
-        # Dünyanın en iyi açık kaynak modeli FLUX'u kullanıyoruz
+        # Prompt'u URL için güvenli hale getiriyoruz
         encoded_prompt = urllib.parse.quote(prompt)
-        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&model=flux&nologo=true&enhance=true"
+        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&model=flux&nologo=true"
         
         response = requests.get(url)
         if response.status_code == 200:
@@ -84,24 +93,24 @@ def departman_uretim(prompt):
 # ----------------- DEPARTMAN 4: PAKETLEME VE LOJİSTİK -----------------
 def paketle_pdf(img_bytes):
     buf = BytesIO()
-    c = canvas.Canvas(buf, pagesize=(595, 842)) # A4 Boyutu
+    c = canvas.Canvas(buf, pagesize=(595, 842))
     img = ImageReader(BytesIO(img_bytes))
-    c.drawImage(img, 0, 0, width=595, height=842) # Tam sayfa yüksek kalite baskı
+    c.drawImage(img, 0, 0, width=595, height=842)
     c.save()
     buf.seek(0)
     return buf
 
-# ----------------- TELEGRAM PANELİ VE ONAY MEKANİZMASI -----------------
+# ----------------- TELEGRAM PANELİ -----------------
 async def uretim_baslat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    durum_mesaji = await update.message.reply_text("📊 **Etsy Stratejisti** pazar analizi yapıyor...")
+    durum_mesaji = await update.message.reply_text("Strateji belirleniyor...")
     
     arastirma = departman_arastirma()
     sirket_hafizasi["urun_tipi"] = arastirma
-    await durum_mesaji.edit_text(f"🎯 **Karar Verildi:**\n_{arastirma}_\n\n🎨 **Sanat Yönetmeni** kusursuz promptu yazıyor...")
+    await durum_mesaji.edit_text(f"Karar Verildi:\n{arastirma}\n\nPrompt yazılıyor...")
     
     kusursuz_prompt = departman_sanat_yonetmeni(arastirma)
     sirket_hafizasi["son_prompt"] = kusursuz_prompt
-    await durum_mesaji.edit_text("⚙️ **FLUX Motoru** şaheseri üretiyor. Bu detaylı bir işlem, birkaç saniye sürebilir...")
+    await durum_mesaji.edit_text("Görsel motoru çalışıyor, detaylar işleniyor...")
     
     img_data = departman_uretim(kusursuz_prompt)
     
@@ -109,54 +118,53 @@ async def uretim_baslat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sirket_hafizasi["bekleyen_gorsel"] = img_data
         
         keyboard = [
-            [InlineKeyboardButton("✅ Mükemmel! Satışa Hazırla (PDF)", callback_data="onay_ver")],
-            [InlineKeyboardButton("❌ Kaliteyi Beğenmedim", callback_data="reddet")]
+            [InlineKeyboardButton("Onayla ve PDF Yap", callback_data="onay_ver")],
+            [InlineKeyboardButton("Reddet (Hatalı/Kalitesiz)", callback_data="reddet")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await context.bot.send_photo(
             chat_id=update.message.chat_id,
             photo=img_data,
-            caption=f"👑 **Patron, yeni ürün prototipi hazır.**\n\n**Strateji:** {arastirma}\n\nLütfen incele ve kararını ver:",
+            caption=f"Yeni Ürün Prototiplendi.\n\nStrateji: {arastirma}\n\nİşlem seçiniz:",
             reply_markup=reply_markup
         )
         await durum_mesaji.delete()
     else:
-        await durum_mesaji.edit_text("🚨 Fabrika üretimde hata verdi. Ağ yoğun olabilir, tekrar deneyin.")
+        await durum_mesaji.edit_text("Bağlantı hatası, lütfen tekrar deneyin.")
 
 async def buton_yonetimi(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
     if query.data == "onay_ver":
-        await query.edit_message_caption(caption="✅ Onaylandı. Tam sayfa yüksek çözünürlüklü PDF hazırlanıyor...")
+        await query.edit_message_caption(caption="Onaylandı. PDF hazırlanıyor...")
         img_data = sirket_hafizasi["bekleyen_gorsel"]
         pdf_dosya = paketle_pdf(img_data)
         await context.bot.send_document(
             chat_id=query.message.chat_id,
             document=pdf_dosya,
-            filename=f"Etsy_Premium_Product.pdf",
-            caption="🏆 İşte Satışa Hazır Premium Dosyanız!"
+            filename=f"Premium_Design.pdf",
+            caption="Satışa hazır PDF dosyası."
         )
         
     elif query.data == "reddet":
-        await query.edit_message_caption(caption="❌ Ürün reddedildi. Şirket hafızasına kaydedilmesi için sebep bekleniyor.")
+        await query.edit_message_caption(caption="Reddedildi. Sebep bekleniyor.")
         await context.bot.send_message(
             chat_id=query.message.chat_id,
-            text="Patron, bu üründe ne eksikti? Düzeltilmesi için lütfen geri bildirimini yaz.\nÖrnek: `/duzelt Renkler çok soluktu, daha canlı ve 'Eşref Tek' estetiğinde keskin hatlar kullan.`"
+            text="Tasarımda ne eksikti? Lütfen '/duzelt [sebebiniz]' formatında geri bildirim yazın."
         )
 
 async def duzelt_komutu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("🚨 Lütfen eleştirini ekle. Örnek: `/duzelt Daha streetwear tarzı olsun.`")
+        await update.message.reply_text("Lütfen eleştirinizi ekleyin. Örnek: /duzelt Ana obje çok küçüktü.")
         return
     
     elestiri = " ".join(context.args)
     sirket_hafizasi["patron_notlari"].append(elestiri)
     
-    await update.message.reply_text(f"📝 Şirket Hafızasına Eklendi: '{elestiri}'.\nTüm departmanlar bu uyarıyı dikkate alacak.\nYeni ürün araştırması için tekrar `/uretim_baslat` yazabilirsin.")
+    await update.message.reply_text(f"Geri bildirim sisteme eklendi: '{elestiri}'.\nYeni üretim için /uretim_baslat komutunu kullanabilirsiniz.")
 
-# ----------------- ANA ÇALIŞTIRICI -----------------
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     await app.bot.delete_webhook(drop_pending_updates=True)
@@ -165,7 +173,7 @@ async def main():
     app.add_handler(CommandHandler("duzelt", duzelt_komutu))
     app.add_handler(CallbackQueryHandler(buton_yonetimi))
     
-    print("💎 Gelişmiş AI Şirketi 7/24 Aktif!")
+    print("Sistem Aktif!")
     
     await app.initialize()
     await app.start()
