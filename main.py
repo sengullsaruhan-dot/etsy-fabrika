@@ -2,6 +2,7 @@ import logging
 import requests
 import openai
 import os
+import asyncio
 from io import BytesIO
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -9,13 +10,13 @@ from reportlab.pdfgen import canvas
 from PIL import Image
 from reportlab.lib.utils import ImageReader
 
-# Railway'deki "Variables" kısmından anahtarları çeker
+# Railway ortam değişkenlerinden anahtarları al
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 logging.basicConfig(level=logging.INFO)
 
-# 1. OpenAI Üretim Motoru (Model hata yönetimi ile)
+# 1. OpenAI Üretim Motoru
 def uret_openai(tema):
     models = ["dall-e-3", "dall-e-2"]
     for model_name in models:
@@ -52,12 +53,24 @@ async def uretim_baslat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("🚨 OpenAI tüm modellerde hata verdi. Lütfen bakiye/anahtar kontrolü yap.")
 
-if __name__ == "__main__":
+# 4. Botun Başlatılması (Ana Fonksiyon)
+async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     
-    # Çakışmaları engellemek için kesin çözüm
-    app.bot.delete_webhook(drop_pending_updates=True)
+    # Çakışmaları önlemek için eski bağlantıları sil
+    await app.bot.delete_webhook(drop_pending_updates=True)
     
     app.add_handler(CommandHandler("uretim_baslat", uretim_baslat))
+    
     print("💎 Fabrika 7/24 Aktif!")
-    app.run_polling()
+    
+    # Polling'i başlat
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    
+    # Railway'in bağlantıyı koparmaması için süresiz bekle
+    await asyncio.Event().wait()
+
+if __name__ == "__main__":
+    asyncio.run(main())
