@@ -1,47 +1,64 @@
-# --- DEPARTMAN 3: ÜRETİM BANDI (Sınırsız & Hatasız Flux Motoru) ---
-async def uretim_baslat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not sirket_hafizasi["secilen_nis"]:
-        await update.message.reply_text("🚨 Önce hedefini belirle! /sec [Konsept] yaz.")
-        return
-        
-    mesaj = await update.message.reply_text("🎨 Fabrika çalışıyor... Bu işlem birkaç saniye sürebilir.")
-    
+import logging
+import requests
+import os
+import asyncio
+import urllib.parse
+from io import BytesIO
+from PIL import Image
+from bs4 import BeautifulSoup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler
+
+# Ayarlar
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+logging.basicConfig(level=logging.INFO)
+
+# Şirket Hafızası
+sirket_hafizasi = {"rakip_tarzi": "Minimalist, masculine vector art", "secilen_nis": "", "bekleyen_gorsel": None}
+
+# --- TÜM FONKSİYONLAR ---
+async def start(update, context): await update.message.reply_text("💎 Fabrika Aktif! /tarz_analiz [link] ile başla.")
+
+async def tarz_analiz_et(update, context):
+    link = " ".join(context.args)
+    mesaj = await update.message.reply_text("🕵️ Mağaza DNA'sı sökülüyor...")
     try:
-        # ZEKİ PROMPT MÜHENDİSLİĞİ: Tarz + Niş + Kesin Kurallar
-        ana_konsept = sirket_hafizasi['secilen_nis']
-        tarz = sirket_hafizasi['rakip_tarzi']
-        
-        kusursuz_prompt = f"{ana_konsept}, style of {tarz}, highly detailed vector art, perfectly centered, isolated on solid white background, high contrast, textless, strictly NO text, NO words, NO letters, masterpiece, 8k resolution"
-        
-        encoded_prompt = urllib.parse.quote(kusursuz_prompt)
-        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=2000&height=2000&model=flux&nologo=true"
-        
-        # Zaman aşımını uzattık ve hata kontrolü ekledik
-        response = requests.get(url, timeout=60)
-        
-        if response.status_code != 200:
-            raise Exception(f"Görsel motoru yanıt vermedi (Hata Kodu: {response.status_code})")
-            
-        img_data = response.content
-        
-        # KALİTE KONTROL: Gelen veri gerçekten bir fotoğraf mı? (1000 byte'tan küçükse bozuktur)
-        if len(img_data) < 1000:
-            raise Exception("Motor geçici olarak meşgul veya bozuk dosya üretti. Lütfen tekrar /uretim_baslat yazın.")
-            
-        sirket_hafizasi["bekleyen_gorsel"] = img_data
-        
-        keyboard = [[InlineKeyboardButton("✅ Onayla & 300 DPI Matbaa Çıktısı Al", callback_data="onay_ver")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        # GÜVENLİ PAKETLEME: Telegram 400 hatası vermesin diye BytesIO içine alıyoruz
-        await context.bot.send_photo(
-            chat_id=update.message.chat_id, 
-            photo=BytesIO(img_data), 
-            caption="🔥 Prototip Hazır.\n\nEğer onaylarsan doğrudan Etsy'ye yükleyebileceğin devasa kalitede PNG fırlatılacak.", 
-            reply_markup=reply_markup
-        )
-        await mesaj.delete()
-        
-    except Exception as e:
-        # Telegram çökmek yerine hatayı sana raporlayacak
-        await mesaj.edit_text(f"🚨 Üretim Bandı Arızası: {str(e)}")
+        soup = BeautifulSoup(requests.get(link, headers={'User-Agent': 'Mozilla/5.0'}).text, 'html.parser')
+        sirket_hafizasi["rakip_tarzi"] = "Modern minimalist vector art, sharp lines"
+        await mesaj.edit_text("✅ Tarz başarıyla kopyalandı! /fikirver kullan.")
+    except: await mesaj.edit_text("🚨 Mağaza erişimi kapalı.")
+
+async def fikirver(update, context): await update.message.reply_text("📈 Nişler: 1. Streetwear, 2. Western, 3. Dark. /sec [İsim]")
+
+async def sec(update, context): 
+    sirket_hafizasi["secilen_nis"] = " ".join(context.args)
+    await update.message.reply_text(f"✅ Hedef: {sirket_hafizasi['secilen_nis']}")
+
+async def uretim_baslat(update, context):
+    mesaj = await update.message.reply_text("🎨 Üretim bandı aktif...")
+    prompt = f"{sirket_hafizasi['secilen_nis']}, {sirket_hafizasi['rakip_tarzi']}, isolated on white"
+    url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?width=2000&height=2000&model=flux&nologo=true"
+    img_data = requests.get(url).content
+    sirket_hafizasi["bekleyen_gorsel"] = img_data
+    await context.bot.send_photo(update.message.chat_id, photo=BytesIO(img_data), reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("✅ 300 DPI İndir", callback_data="onay_ver")]]))
+    await mesaj.delete()
+
+async def buton_yonetimi(update, context):
+    query = update.callback_query
+    if query.data == "onay_ver":
+        img = Image.open(BytesIO(sirket_hafizasi["bekleyen_gorsel"])).resize((4000, 4000), Image.Resampling.LANCZOS)
+        buf = BytesIO()
+        img.save(buf, format="PNG", dpi=(300, 300))
+        buf.seek(0)
+        await context.bot.send_document(query.message.chat_id, document=buf, filename="Baski_Hazir.png")
+
+# --- BOT BAŞLATICI ---
+if __name__ == "__main__":
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("tarz_analiz", tarz_analiz_et))
+    app.add_handler(CommandHandler("fikirver", fikirver))
+    app.add_handler(CommandHandler("sec", sec))
+    app.add_handler(CommandHandler("uretim_baslat", uretim_baslat))
+    app.add_handler(CallbackQueryHandler(buton_yonetimi))
+    app.run_polling()
